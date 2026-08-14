@@ -84,6 +84,12 @@
             "boost_remaining_water": {
                 "name": "Water boost remaining",
                 "unit_of_measurement": "minutes"
+            },
+            "weekly_schedule_heat": {
+                "name": "Weekly schedule (heat)"
+            },
+            "weekly_schedule_water": {
+                "name": "Weekly schedule (water)"
             }
         },
         "climate": {
@@ -177,6 +183,42 @@
                     "description": "Select the Hive Thermostat to cancel the boost."
                 }
             }
+        },
+        "get_weekly_schedule": {
+            "name": "Get weekly schedule",
+            "description": "Requests the device report its native weekly schedule for a zone. The result arrives asynchronously as coordinator state, not as a service response.",
+            "fields": {
+                "config_entry_id": {
+                    "name": "Hive Thermostat",
+                    "description": "Select the Hive Thermostat to query."
+                },
+                "zone": {
+                    "name": "Zone",
+                    "description": "Which zone to request (water is SLR2 only, defaults to heat)."
+                }
+            }
+        },
+        "set_weekly_schedule": {
+            "name": "Set weekly schedule",
+            "description": "Writes a native weekly schedule to the device for the given day(s).",
+            "fields": {
+                "config_entry_id": {
+                    "name": "Hive Thermostat",
+                    "description": "Select the Hive Thermostat to configure."
+                },
+                "zone": {
+                    "name": "Zone",
+                    "description": "Which zone to write (water is SLR2 only, defaults to heat)."
+                },
+                "days": {
+                    "name": "Days",
+                    "description": "Day(s) this programme applies to."
+                },
+                "transitions": {
+                    "name": "Transitions",
+                    "description": "List of time/temperature transitions for the day(s)."
+                }
+            }
         }
     },
     "exceptions": {
@@ -188,6 +230,9 @@
         },
         "wrong_model": {
             "message": "This device does not support this action."
+        },
+        "invalid_transition": {
+            "message": "Invalid schedule transition {transition} - expected {{\"time\": \"HH:MM\", \"temperature\": <number>}}."
         }
     }
 }

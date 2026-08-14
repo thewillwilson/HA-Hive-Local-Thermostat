@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PRECISION_TENTHS,
+    EntityCategory,
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
@@ -22,6 +23,8 @@ from .common import HiveConfigEntry
 from .const import (
     DOMAIN,
     MODEL_SLR2,
+    ZONE_HEAT,
+    ZONE_WATER,
 )
 from .coordinator import HiveCoordinator
 from .entity import HiveEntity, HiveEntityDescription
@@ -100,13 +103,37 @@ async def async_setup_entry(
             ),
         ]
 
-    _entities = [
+    _entities: list[HiveSensor | HiveWeeklyScheduleSensor] = [
         HiveSensor(
             entity_description=entity_description,
             coordinator=coordinator,
         )
         for entity_description in entity_descriptions
     ]
+
+    _entities.append(
+        HiveWeeklyScheduleSensor(
+            entity_description=HiveSensorEntityDescription(
+                key="weekly_schedule_heat",
+                translation_key="weekly_schedule_heat",
+                name=config_entry.title,
+            ),
+            coordinator=coordinator,
+            zone=ZONE_HEAT,
+        )
+    )
+    if coordinator.model == MODEL_SLR2:
+        _entities.append(
+            HiveWeeklyScheduleSensor(
+                entity_description=HiveSensorEntityDescription(
+                    key="weekly_schedule_water",
+                    translation_key="weekly_schedule_water",
+                    name=config_entry.title,
+                ),
+                coordinator=coordinator,
+                zone=ZONE_WATER,
+            )
+        )
 
     async_add_entities(sensorEntity for sensorEntity in _entities)
 
@@ -152,4 +179,53 @@ class HiveSensor(HiveEntity, SensorEntity):
             )
 
         self._attr_native_value = new_value
+        self.async_write_ha_state()
+
+
+class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
+    """Diagnostic sensor exposing the device's native weekly schedule.
+
+    State is a simple "known days" summary; the full per-day transitions
+    (as last read via the get_weekly_schedule service) are in the
+    'schedule' extra attribute, since the raw data isn't a good fit for a
+    sensor's native_value. Nothing is populated until get_weekly_schedule
+    has been called at least once - this doesn't poll the device itself.
+    """
+
+    entity_description: HiveSensorEntityDescription
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        entity_description: HiveSensorEntityDescription,
+        coordinator: HiveCoordinator,
+        zone: str,
+    ) -> None:
+        """Initialize the sensor class."""
+
+        self.entity_description = entity_description
+        self._zone = zone
+        self._attr_unique_id = (
+            f"{DOMAIN}_{entity_description.name}_{entity_description.key}".lower()
+        )
+        self._attr_has_entity_name = True
+
+        super().__init__(entity_description, coordinator)
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+
+        schedule = (
+            self.coordinator.weekly_schedule_water
+            if self._zone == ZONE_WATER
+            else self.coordinator.weekly_schedule_heat
+        )
+
+        if schedule:
+            self._attr_native_value = f"{len(schedule)}/7 days known"
+            self._attr_extra_state_attributes = {"schedule": schedule}
+        else:
+            self._attr_native_value = "unknown"
+            self._attr_extra_state_attributes = {}
+
         self.async_write_ha_state()

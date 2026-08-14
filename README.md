@@ -26,13 +26,22 @@ The new device created will have new sensors/controls available that will accura
 
 You can optionally hide/disable the native Hive device created by Zigbee2MQTT within HomeAssistant.
 
-The integration supports native boost and native schedules (auto). With schedules you can switch on/off schedule mode but you cannot modify the schedule details via the integration. You can of course ignore the schedule mode and setup automations within Home Assistant to control when heating/water is on or off and set a temperature for heating.
+The integration supports native boost and native schedules (auto). With schedules you can switch on/off schedule mode, and read/write the schedule's actual contents (times and temperatures) via the `get_weekly_schedule`/`set_weekly_schedule` actions described below. You can of course still ignore the native schedule entirely and set up automations within Home Assistant instead to control when heating/water is on or off and set a temperature for heating.
 
 The numeric entities allow you to set defaults for boost times, heating boost temperature and also frost protection. Frost protection should be set to match what you have set on the Hive thermostat for an accurate display.
 
 Actions are provided to natively boost the Heating `hive_local_thermostat.boost_heating` and Water `hive_local_thermostat.boost_water` (SLR2 only), these can optionally take a duration and temperature (heating only), these actions allow you to make custom buttons/scripts/automations to add additional control over the default boost buttons.
 
 There are also matching actions to cancel the native boost for Heating `hive_local_thermostat.cancel_boost_heating` and Water `hive_local_thermostat.cancel_boost_water` (SLR2 only), these actions will return the heating/water back to the state they were before the boost.
+
+### Weekly schedule (SLR2)
+
+The SLR2 answers the standard Zigbee thermostat cluster's Get/Set Weekly Schedule commands, so this fork exposes that directly rather than only letting you toggle Auto mode:
+
+- `hive_local_thermostat.get_weekly_schedule` (`zone`: `heat` or `water`, defaults to `heat`) requests the device report its schedule. The reply arrives asynchronously - sometimes as several messages, one per group of days that share an identical programme - and is merged into the `sensor.*_weekly_schedule_heat`/`sensor.*_weekly_schedule_water` diagnostic entity's `schedule` attribute as it comes in. Nothing is populated until you call this at least once; it isn't polled automatically.
+- `hive_local_thermostat.set_weekly_schedule` (`zone`, `days`: list of weekday names, `transitions`: list of `{time: "HH:MM", temperature: <°C>}`, up to 6 in chronological order) writes a programme to the device for the given day(s). Use a low placeholder temperature (e.g. `1`) for a transition that should mean "off"/setback rather than a real target - that's the device's own convention, not something this integration invents.
+
+This talks directly to the device over MQTT rather than through this integration's usual coordinator state, so it bypasses the hold/mode logic used elsewhere - test with a single day/transition first and confirm it round-trips (`set_weekly_schedule` then `get_weekly_schedule`) before relying on it.
 
 ![Hive Screenshot](https://raw.githubusercontent.com/spants/HA-Hive-Local-Thermostat/main/images/screenshot.png "Hive Controls")
 

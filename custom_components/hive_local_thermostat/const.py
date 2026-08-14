@@ -33,3 +33,22 @@ DEFAULT_HEATING_BOOST_TEMPERATURE = 25
 DEFAULT_WATER_BOOST_MINUTES = 60
 
 MAXIMUM_BOOST_MINUTES = 180
+
+# Weekly schedule (native device programme, read/written over the Zigbee
+# hvacThermostat cluster's Get/Set Weekly Schedule commands via Z2M)
+ZONE_HEAT = "heat"
+ZONE_WATER = "water"
+
+VALID_SCHEDULE_DAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
+
+# Sentinel heating_setpoint value the device uses in a transition to mean
+# "no target here" (i.e. off/setback), rather than a real temperature.
+WEEKLY_SCHEDULE_OFF_SETPOINT = 1

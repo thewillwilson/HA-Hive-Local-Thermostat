@@ -54,3 +54,59 @@ cancel_boost_water:
       selector:
         config_entry:
           integration: hive_local_thermostat
+get_weekly_schedule:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: hive_local_thermostat
+    zone:
+      name: Zone
+      description: Which zone's schedule to request (water is SLR2 only).
+      required: false
+      selector:
+        select:
+          options:
+            - heat
+            - water
+set_weekly_schedule:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: hive_local_thermostat
+    zone:
+      name: Zone
+      description: Which zone's schedule to write (water is SLR2 only).
+      required: false
+      selector:
+        select:
+          options:
+            - heat
+            - water
+    days:
+      name: Days
+      description: Day(s) this programme applies to (they'll share the same transitions).
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
+    transitions:
+      name: Transitions
+      description: >-
+        List of {time: "HH:MM", temperature: <°C>} objects, up to 6, in
+        chronological order. Use a low placeholder temperature (e.g. 1) for a
+        transition that should mean "off"/setback rather than a real target.
+      required: true
+      selector:
+        object: {}

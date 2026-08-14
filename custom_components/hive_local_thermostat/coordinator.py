@@ -28,6 +28,8 @@ from .const import (
     HIVE_BOOST,
     LOGGER,
     MODEL_SLR2,
+    ZONE_HEAT,
+    ZONE_WATER,
 )
 
 PRESET_MAP = {
@@ -76,6 +78,13 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # Last setpoint received with hold=False (genuine schedule target), used to suppress
     # stale hold=True echoes during SLR2 schedule-period transitions.
     _last_schedule_setpoint: float | None = None
+
+    # Native weekly schedule, keyed by day name -> list of {"time": minutes, "heating_setpoint": temp}.
+    # The device answers a schedule request in day-group chunks (one MQTT message per
+    # group of days that share a programme), so this is accumulated across messages
+    # rather than replaced wholesale on each one.
+    weekly_schedule_heat: dict[str, list[dict[str, Any]]] | None = None
+    weekly_schedule_water: dict[str, list[dict[str, Any]]] | None = None
 
     # Diagnostics
     last_mqtt_payload: dict[str, Any] | None = None
@@ -183,6 +192,24 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             if not self.valid_data_for_model(parsed_data):
                 return
+
+            # Weekly schedule responses are only present when explicitly requested
+            # (via async_get_weekly_schedule) and arrive as separate day-group
+            # chunks, so merge rather than overwrite.
+            if self.model == MODEL_SLR2:
+                if "weekly_schedule_heat" in parsed_data:
+                    self.weekly_schedule_heat = self._merge_weekly_schedule(
+                        self.weekly_schedule_heat, parsed_data["weekly_schedule_heat"]
+                    )
+                if "weekly_schedule_water" in parsed_data:
+                    self.weekly_schedule_water = self._merge_weekly_schedule(
+                        self.weekly_schedule_water,
+                        parsed_data["weekly_schedule_water"],
+                    )
+            elif "weekly_schedule" in parsed_data:
+                self.weekly_schedule_heat = self._merge_weekly_schedule(
+                    self.weekly_schedule_heat, parsed_data["weekly_schedule"]
+                )
 
             if self.model == MODEL_SLR2:
                 reported_boost_remaining_heat = cast(
@@ -356,6 +383,26 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:  # noqa: BLE001
             LOGGER.error("Error handling MQTT message: %s", err)
 
+    @staticmethod
+    def _merge_weekly_schedule(
+        existing: dict[str, list[dict[str, Any]]] | None,
+        response: dict[str, Any],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Merge one Get Weekly Schedule response (one or more days) into the store.
+
+        The device answers with {"days": [...], "transitions": [...]}, covering
+        whichever group of days shares that exact programme. A full-week request
+        typically arrives as several of these, one per group, each landing as a
+        separate MQTT message on the same key - so we accumulate by day rather
+        than replace the whole store on every message.
+        """
+        store = dict(existing) if existing else {}
+        days = response.get("days") or []
+        transitions = response.get("transitions") or []
+        for day in days:
+            store[day] = transitions
+        return store
+
     def valid_data_for_model(self, data: dict[str, Any]) -> bool:
         """Check if data is valid for the current model."""
         if self.model == MODEL_SLR2:
@@ -464,6 +511,53 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Publish MQTT set message."""
         LOGGER.debug("Sending to %s message %s", self.topic_set, payload)
         await mqtt_client.async_publish(self.hass, self.topic_set, payload)
+
+    async def _async_publish_get(self, payload: str) -> None:
+        """Publish MQTT get (read request) message."""
+        LOGGER.debug("Sending to %s message %s", self.topic_get, payload)
+        await mqtt_client.async_publish(self.hass, self.topic_get, payload)
+
+    def _weekly_schedule_key(self, zone: str) -> str:
+        """Return the model-aware MQTT attribute key for the weekly schedule."""
+        if self.model == MODEL_SLR2:
+            return f"weekly_schedule_{zone}"
+        return "weekly_schedule"
+
+    async def async_get_weekly_schedule(self, zone: str = ZONE_HEAT) -> None:
+        """Request the device report its native weekly schedule for a zone.
+
+        The response arrives asynchronously (possibly as several messages, one
+        per group of days) and is merged into weekly_schedule_heat/_water as it
+        comes in - this call only triggers the read, it doesn't return the data.
+        """
+        if zone == ZONE_WATER and self.model != MODEL_SLR2:
+            LOGGER.error("Water zone schedule is only available on SLR2")
+            return
+
+        key = self._weekly_schedule_key(zone)
+        payload = json.dumps({key: ""})
+        await self._async_publish_get(payload)
+
+    async def async_set_weekly_schedule(
+        self,
+        zone: str,
+        days: list[str],
+        transitions: list[dict[str, Any]],
+    ) -> None:
+        """Write a native weekly schedule to the device for the given day(s).
+
+        transitions is a list of {"time": <minutes since midnight>,
+        "heating_setpoint": <°C>} dicts, in the device's own raw format - use
+        WEEKLY_SCHEDULE_OFF_SETPOINT for a transition that should mean "off"/
+        setback rather than a real target temperature.
+        """
+        if zone == ZONE_WATER and self.model != MODEL_SLR2:
+            LOGGER.error("Water zone schedule is only available on SLR2")
+            return
+
+        key = self._weekly_schedule_key(zone)
+        payload = json.dumps({key: {"days": days, "transitions": transitions}})
+        await self._async_publish_set(payload)
 
     async def async_water_boost(
         self, boost_duration_minutes: int | None = None
