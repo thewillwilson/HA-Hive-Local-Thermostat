@@ -227,27 +227,31 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
         hours, mins = divmod(int(minutes), 60)
         return f"{hours:02d}:{mins:02d}"
 
-    def _format_state(self, heating_setpoint: float) -> str:
-        """Render a transition's raw heating_setpoint as readable on/off/temp text."""
+    def _format_transition(self, heating_setpoint: float) -> dict[str, Any]:
+        """Split a transition's raw heating_setpoint into state plus temperature.
+
+        For heat, the actual target comes back as a real number rather than
+        folded into text; water has no real temperature so only state applies.
+        """
         if self._zone == ZONE_WATER:
             if heating_setpoint == WATER_SCHEDULE_ON_SETPOINT:
-                return "on"
+                return {"state": "on"}
             if heating_setpoint == WATER_SCHEDULE_OFF_SETPOINT:
-                return "off"
-            return f"unrecognised ({heating_setpoint})"
+                return {"state": "off"}
+            return {"state": "unrecognised", "raw_heating_setpoint": heating_setpoint}
         if heating_setpoint == WEEKLY_SCHEDULE_OFF_SETPOINT:
-            return "off"
-        return f"on ({heating_setpoint}°C)"
+            return {"state": "off"}
+        return {"state": "on", "temperature": heating_setpoint}
 
     def _format_schedule(
         self, schedule: dict[str, list[dict[str, Any]]]
-    ) -> dict[str, list[dict[str, str]]]:
-        """Convert the raw per-day transitions into human-readable time/state pairs."""
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Convert the raw per-day transitions into readable time/state/temperature."""
         return {
             day: [
                 {
                     "time": self._format_time(transition["time"]),
-                    "state": self._format_state(transition["heating_setpoint"]),
+                    **self._format_transition(transition["heating_setpoint"]),
                 }
                 for transition in sorted(transitions, key=lambda t: t["time"])
             ]
