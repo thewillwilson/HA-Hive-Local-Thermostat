@@ -52,3 +52,9 @@ VALID_SCHEDULE_DAYS = [
 # Sentinel heating_setpoint value the device uses in a transition to mean
 # "no target here" (i.e. off/setback), rather than a real temperature.
 WEEKLY_SCHEDULE_OFF_SETPOINT = 1
+
+# The water zone has no real temperature dial (it's an on/off relay), so the
+# device reuses the same heating_setpoint field with its own pair of sentinel
+# values instead - confirmed against a real SLR2d rather than assumed.
+WATER_SCHEDULE_ON_SETPOINT = 99
+WATER_SCHEDULE_OFF_SETPOINT = 0

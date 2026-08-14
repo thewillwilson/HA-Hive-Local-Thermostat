@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -23,6 +23,9 @@ from .common import HiveConfigEntry
 from .const import (
     DOMAIN,
     MODEL_SLR2,
+    WATER_SCHEDULE_OFF_SETPOINT,
+    WATER_SCHEDULE_ON_SETPOINT,
+    WEEKLY_SCHEDULE_OFF_SETPOINT,
     ZONE_HEAT,
     ZONE_WATER,
 )
@@ -212,6 +215,45 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
 
         super().__init__(entity_description, coordinator)
 
+    @staticmethod
+    def _format_time(minutes: int) -> str:
+        """Render minutes-since-midnight as a plain HH:MM wall-clock string.
+
+        This is a time-of-day, not a timestamp - the device has no concept
+        of a date here, so there's nothing to convert between UTC and local:
+        it's displayed exactly as programmed, the same way HA's own
+        Schedule helper shows recurring times.
+        """
+        hours, mins = divmod(int(minutes), 60)
+        return f"{hours:02d}:{mins:02d}"
+
+    def _format_state(self, heating_setpoint: float) -> str:
+        """Render a transition's raw heating_setpoint as readable on/off/temp text."""
+        if self._zone == ZONE_WATER:
+            if heating_setpoint == WATER_SCHEDULE_ON_SETPOINT:
+                return "on"
+            if heating_setpoint == WATER_SCHEDULE_OFF_SETPOINT:
+                return "off"
+            return f"unrecognised ({heating_setpoint})"
+        if heating_setpoint == WEEKLY_SCHEDULE_OFF_SETPOINT:
+            return "off"
+        return f"on ({heating_setpoint}°C)"
+
+    def _format_schedule(
+        self, schedule: dict[str, list[dict[str, Any]]]
+    ) -> dict[str, list[dict[str, str]]]:
+        """Convert the raw per-day transitions into human-readable time/state pairs."""
+        return {
+            day: [
+                {
+                    "time": self._format_time(transition["time"]),
+                    "state": self._format_state(transition["heating_setpoint"]),
+                }
+                for transition in sorted(transitions, key=lambda t: t["time"])
+            ]
+            for day, transitions in schedule.items()
+        }
+
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
 
@@ -223,7 +265,10 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
 
         if schedule:
             self._attr_native_value = f"{len(schedule)}/7 days known"
-            self._attr_extra_state_attributes = {"schedule": schedule}
+            self._attr_extra_state_attributes = {
+                "schedule": self._format_schedule(schedule),
+                "raw_schedule": schedule,
+            }
         else:
             self._attr_native_value = "unknown"
             self._attr_extra_state_attributes = {}
