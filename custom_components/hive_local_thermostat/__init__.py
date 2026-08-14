@@ -29,6 +29,8 @@ from .const import (
     LOGGER,
     MIN_HA_VERSION,
     MODEL_SLR2,
+    ZONE_HEAT,
+    ZONE_WATER,
 )
 from .coordinator import HiveCoordinator
 from .services import async_setup_services
@@ -97,6 +99,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HiveConfigEntry) -> bool
         coordinator=coordinator,
     )
 
+    # Load any weekly schedule persisted from a previous session before
+    # entities are created, so the schedule sensors render last-known data
+    # immediately on startup instead of sitting blank until a fresh MQTT
+    # reply comes back.
+    await coordinator.async_load_weekly_schedule()
+
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
     LOGGER.debug(
@@ -117,6 +125,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: HiveConfigEntry) -> bool
     payload = r'{"system_mode":""}'
     LOGGER.debug("Sending to %s/get message %s", coordinator.topic, payload)
     await mqtt_client.async_publish(hass, coordinator.topic_get, payload)
+
+    # Refresh the weekly schedule too, rather than leaving it to whatever was
+    # last persisted (or nothing, on first setup) until someone manually
+    # calls get_weekly_schedule. Fire-and-forget: the reply is asynchronous
+    # and merges into coordinator state (and gets re-persisted) as it arrives.
+    entry.async_create_background_task(
+        hass,
+        coordinator.async_get_weekly_schedule(ZONE_HEAT),
+        f"{DOMAIN}_{entry.entry_id}_startup_get_weekly_schedule_heat",
+    )
+    if coordinator.model == MODEL_SLR2:
+        entry.async_create_background_task(
+            hass,
+            coordinator.async_get_weekly_schedule(ZONE_WATER),
+            f"{DOMAIN}_{entry.entry_id}_startup_get_weekly_schedule_water",
+        )
 
     entry.async_on_unload(entry.add_update_listener(config_entry_update_listener))
 

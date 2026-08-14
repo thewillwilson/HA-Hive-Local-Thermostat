@@ -15,6 +15,7 @@ from homeassistant.components.climate.const import (
 from homeassistant.components.mqtt import client as mqtt_client
 from homeassistant.components.mqtt.models import ReceiveMessage
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util.dt import utcnow
 
@@ -31,6 +32,8 @@ from .const import (
     ZONE_HEAT,
     ZONE_WATER,
 )
+
+SCHEDULE_STORAGE_VERSION = 1
 
 PRESET_MAP = {
     PRESET_NONE: "",
@@ -110,6 +113,38 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.show_heating_schedule_mode = show_heat_schedule_mode
         self.show_water_schedule_mode = show_water_schedule_mode
         self.data: dict[str, Any] = {}
+        self._schedule_store: Store[dict[str, Any]] = Store(
+            hass, SCHEDULE_STORAGE_VERSION, f"{DOMAIN}_{entry_id}_weekly_schedule"
+        )
+
+    async def async_load_weekly_schedule(self) -> None:
+        """Load any weekly schedule persisted from a previous session.
+
+        Call this before entities are added so they render last-known data
+        immediately on startup, rather than sitting empty until a fresh
+        get_weekly_schedule reply comes back over MQTT.
+        """
+        stored = await self._schedule_store.async_load()
+        if stored:
+            self.weekly_schedule_heat = stored.get("heat")
+            self.weekly_schedule_water = stored.get("water")
+
+    def _save_weekly_schedule(self) -> None:
+        """Persist the current weekly schedule so it survives a restart.
+
+        Fire-and-forget: this is called from the synchronous MQTT message
+        callback, so the actual write is scheduled as a background task
+        rather than awaited inline.
+        """
+        self.hass.async_create_task(
+            self._schedule_store.async_save(
+                {
+                    "heat": self.weekly_schedule_heat,
+                    "water": self.weekly_schedule_water,
+                }
+            ),
+            f"{DOMAIN}_{self.entry_id}_save_weekly_schedule",
+        )
 
     @property
     def topic_get(self) -> str:
@@ -195,21 +230,29 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Weekly schedule responses are only present when explicitly requested
             # (via async_get_weekly_schedule) and arrive as separate day-group
-            # chunks, so merge rather than overwrite.
+            # chunks, so merge rather than overwrite. Only persist when one
+            # actually showed up in this message, not on every MQTT update.
+            schedule_updated = False
             if self.model == MODEL_SLR2:
                 if "weekly_schedule_heat" in parsed_data:
                     self.weekly_schedule_heat = self._merge_weekly_schedule(
                         self.weekly_schedule_heat, parsed_data["weekly_schedule_heat"]
                     )
+                    schedule_updated = True
                 if "weekly_schedule_water" in parsed_data:
                     self.weekly_schedule_water = self._merge_weekly_schedule(
                         self.weekly_schedule_water,
                         parsed_data["weekly_schedule_water"],
                     )
+                    schedule_updated = True
             elif "weekly_schedule" in parsed_data:
                 self.weekly_schedule_heat = self._merge_weekly_schedule(
                     self.weekly_schedule_heat, parsed_data["weekly_schedule"]
                 )
+                schedule_updated = True
+
+            if schedule_updated:
+                self._save_weekly_schedule()
 
             if self.model == MODEL_SLR2:
                 reported_boost_remaining_heat = cast(
