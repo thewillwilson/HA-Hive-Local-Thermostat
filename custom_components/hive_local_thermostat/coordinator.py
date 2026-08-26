@@ -443,7 +443,10 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         days = response.get("days") or []
         transitions = response.get("transitions") or []
         for day in days:
-            store[day] = transitions
+            # Copy per day: the days in one response share an identical
+            # programme, but they must not share the same list object (a later
+            # in-place edit of one day would otherwise silently change them all).
+            store[day] = list(transitions)
         return store
 
     def valid_data_for_model(self, data: dict[str, Any]) -> bool:

@@ -20,6 +20,9 @@ from .const import (
     DOMAIN,
     MODEL_SLR2,
     VALID_SCHEDULE_DAYS,
+    WATER_SCHEDULE_OFF_SETPOINT,
+    WATER_SCHEDULE_ON_SETPOINT,
+    WEEKLY_SCHEDULE_OFF_SETPOINT,
     ZONE_HEAT,
     ZONE_WATER,
 )
@@ -268,7 +271,7 @@ async def _async_set_weekly_schedule(call: ServiceCall) -> ServiceResponse:
             time_str = str(item["time"])
             hours_str, minutes_str = time_str.split(":", 1)
             minutes_since_midnight = int(hours_str) * 60 + int(minutes_str)
-            heating_setpoint = float(item["temperature"])
+            heating_setpoint = _resolve_setpoint(item, zone)
         except (KeyError, ValueError, TypeError) as err:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -286,3 +289,38 @@ async def _async_set_weekly_schedule(call: ServiceCall) -> ServiceResponse:
     await coordinator.async_set_weekly_schedule(zone, days, transitions)
 
     return None
+
+
+def _resolve_setpoint(item: dict, zone: str) -> float:
+    """Turn one friendly transition into the device's raw heating_setpoint.
+
+    Accepts the same shape the schedule sensor renders, so a day read back via
+    get_weekly_schedule can be fed straight into set_weekly_schedule:
+    - water is an on/off relay: {"state": "on"/"off"} maps to the device's
+      99/0 sentinels (a raw {"temperature": 99} is still accepted as-is).
+    - heat: {"temperature": <°C>} for a real target, or {"state": "off"} for
+      an off/setback period (mapped to the device's setback sentinel).
+
+    Raises KeyError/ValueError/TypeError on anything unrecognised so the caller
+    reports it as an invalid transition.
+    """
+    state = item.get("state")
+    normalised_state = str(state).strip().lower() if state is not None else None
+
+    if zone == ZONE_WATER:
+        if normalised_state in ("on", "true"):
+            return float(WATER_SCHEDULE_ON_SETPOINT)
+        if normalised_state in ("off", "false"):
+            return float(WATER_SCHEDULE_OFF_SETPOINT)
+        if normalised_state is not None:
+            # Unrecognised water state (caller reports it as invalid_transition).
+            raise ValueError
+        # No friendly state given - fall back to a raw sentinel value.
+        return float(item["temperature"])
+
+    if normalised_state == "off":
+        return float(WEEKLY_SCHEDULE_OFF_SETPOINT)
+    if normalised_state == "on":
+        # "on" alone is ambiguous for heat - it needs an actual target.
+        raise ValueError
+    return float(item["temperature"])

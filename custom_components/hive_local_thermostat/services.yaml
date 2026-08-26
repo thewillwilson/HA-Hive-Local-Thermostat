@@ -104,9 +104,11 @@ set_weekly_schedule:
     transitions:
       name: Transitions
       description: >-
-        List of {time: "HH:MM", temperature: <°C>} objects, up to 6, in
-        chronological order. Use a low placeholder temperature (e.g. 1) for a
-        transition that should mean "off"/setback rather than a real target.
+        List of transition objects, up to 6, in chronological order. Each is
+        {time: "HH:MM", ...}. For heat use temperature: <°C> for a real target,
+        or state: "off" for a setback period. For water use state: "on" or
+        state: "off". This matches what the weekly schedule sensor renders, so
+        a day read back via get_weekly_schedule can be pasted straight in here.
       required: true
       selector:
         object: {}

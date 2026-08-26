@@ -23,6 +23,7 @@ from .common import HiveConfigEntry
 from .const import (
     DOMAIN,
     MODEL_SLR2,
+    VALID_SCHEDULE_DAYS,
     WATER_SCHEDULE_OFF_SETPOINT,
     WATER_SCHEDULE_ON_SETPOINT,
     WEEKLY_SCHEDULE_OFF_SETPOINT,
@@ -243,6 +244,19 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
             return {"state": "off"}
         return {"state": "on", "temperature": heating_setpoint}
 
+    @staticmethod
+    def _ordered_days(schedule: dict[str, list[dict[str, Any]]]) -> list[str]:
+        """Return the known days in Monday->Sunday order.
+
+        The device reports days grouped by shared programme, in no particular
+        order; presenting them as a fixed week reads far more naturally. Any
+        day name the device sends that isn't a standard weekday is appended
+        after, so nothing is silently dropped.
+        """
+        known = [day for day in VALID_SCHEDULE_DAYS if day in schedule]
+        extra = [day for day in schedule if day not in VALID_SCHEDULE_DAYS]
+        return known + extra
+
     def _format_schedule(
         self, schedule: dict[str, list[dict[str, Any]]]
     ) -> dict[str, list[dict[str, Any]]]:
@@ -253,9 +267,32 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
                     "time": self._format_time(transition["time"]),
                     **self._format_transition(transition["heating_setpoint"]),
                 }
-                for transition in sorted(transitions, key=lambda t: t["time"])
+                for transition in sorted(schedule[day], key=lambda t: t["time"])
             ]
-            for day, transitions in schedule.items()
+            for day in self._ordered_days(schedule)
+        }
+
+    @staticmethod
+    def _transition_label(transition: dict[str, Any]) -> str:
+        """Render one already-formatted transition as compact human text."""
+        if transition.get("state") == "on" and "temperature" in transition:
+            return f"{transition['time']} {transition['temperature']}°C"
+        return f"{transition['time']} {transition.get('state', '?')}"
+
+    def _format_schedule_text(
+        self, formatted: dict[str, list[dict[str, Any]]]
+    ) -> dict[str, str]:
+        """Render each day as a single readable line for a Markdown/entity card.
+
+        e.g. "06:30 21°C · 09:00 off · 17:00 20°C · 22:00 off". The nested
+        'schedule' attribute only shows as raw JSON in the UI; this is what a
+        human actually reads at a glance.
+        """
+        return {
+            day: " · ".join(self._transition_label(t) for t in transitions)
+            if transitions
+            else "no transitions"
+            for day, transitions in formatted.items()
         }
 
     def _handle_coordinator_update(self) -> None:
@@ -268,9 +305,11 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
         )
 
         if schedule:
+            formatted = self._format_schedule(schedule)
             self._attr_native_value = f"{len(schedule)}/7 days known"
             self._attr_extra_state_attributes = {
-                "schedule": self._format_schedule(schedule),
+                "schedule_text": self._format_schedule_text(formatted),
+                "schedule": formatted,
                 "raw_schedule": schedule,
             }
         else:
