@@ -33,6 +33,9 @@ from .const import (
 from .coordinator import HiveCoordinator
 from .entity import HiveEntity, HiveEntityDescription
 
+# Home Assistant caps an entity state at 255 characters.
+MAX_STATE_LENGTH = 255
+
 
 @dataclass(frozen=True, kw_only=True)
 class HiveSensorEntityDescription(
@@ -295,6 +298,25 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
             for day, transitions in formatted.items()
         }
 
+    @staticmethod
+    def _native_summary(text: dict[str, str]) -> str:
+        """Summarise the week for the sensor's state (shown on the device page).
+
+        When every known day shares the same programme (the common case) the
+        state is that one line, so the schedule is visible at a glance without
+        opening attributes. When days differ, it falls back to a count. HA caps
+        a state at 255 chars, so an over-long line falls back to the count too.
+        """
+        week = len(VALID_SCHEDULE_DAYS)
+        distinct = set(text.values())
+        known = len(text)
+        if len(distinct) == 1:
+            line = next(iter(distinct))
+            summary = line if known == week else f"{line} ({known}/{week} days)"
+            if len(summary) <= MAX_STATE_LENGTH:
+                return summary
+        return f"{known}/{week} days, varies"
+
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
 
@@ -306,9 +328,10 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
 
         if schedule:
             formatted = self._format_schedule(schedule)
-            self._attr_native_value = f"{len(schedule)}/7 days known"
+            text = self._format_schedule_text(formatted)
+            self._attr_native_value = self._native_summary(text)
             self._attr_extra_state_attributes = {
-                "schedule_text": self._format_schedule_text(formatted),
+                "schedule_text": text,
                 "schedule": formatted,
                 "raw_schedule": schedule,
             }
