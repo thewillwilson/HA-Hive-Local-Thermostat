@@ -593,17 +593,39 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Write a native weekly schedule to the device for the given day(s).
 
         transitions is a list of {"time": <minutes since midnight>,
-        "heating_setpoint": <°C>} dicts, in the device's own raw format - use
-        WEEKLY_SCHEDULE_OFF_SETPOINT for a transition that should mean "off"/
-        setback rather than a real target temperature.
+        "heating_setpoint": <value>} dicts (the shape read back from the
+        device) - use WEEKLY_SCHEDULE_OFF_SETPOINT for a transition that should
+        mean "off"/setback rather than a real target temperature.
+
+        The write is translated into the shape Zigbee2MQTT's standard
+        thermostat_weekly_schedule converter expects, which differs from what
+        the device reports back: `days`->`dayofweek`, `time` (minutes)->
+        `transitionTime` ("HH:MM"), `heating_setpoint`->`heatSetpoint` (the
+        converter multiplies it by 100, matching the raw values the device
+        reports). Verified against a real SLR2d.
         """
         if zone == ZONE_WATER and self.model != MODEL_SLR2:
             LOGGER.error("Water zone schedule is only available on SLR2")
             return
 
+        z2m_transitions = [
+            {
+                "transitionTime": self._minutes_to_hhmm(transition["time"]),
+                "heatSetpoint": transition["heating_setpoint"],
+            }
+            for transition in transitions
+        ]
         key = self._weekly_schedule_key(zone)
-        payload = json.dumps({key: {"days": days, "transitions": transitions}})
+        payload = json.dumps(
+            {key: {"dayofweek": days, "transitions": z2m_transitions}}
+        )
         await self._async_publish_set(payload)
+
+    @staticmethod
+    def _minutes_to_hhmm(minutes: int) -> str:
+        """Render minutes-since-midnight as the "HH:MM" the converter accepts."""
+        hours, mins = divmod(int(minutes), 60)
+        return f"{hours:02d}:{mins:02d}"
 
     async def async_water_boost(
         self, boost_duration_minutes: int | None = None

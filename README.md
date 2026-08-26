@@ -45,7 +45,7 @@ The SLR2 answers the standard Zigbee thermostat cluster's Get/Set Weekly Schedul
 
   This is the same shape the schedule sensor renders, so a day you read back via `get_weekly_schedule` can be pasted straight into `set_weekly_schedule`.
 
-This talks directly to the device over MQTT rather than through this integration's usual coordinator state, so it bypasses the hold/mode logic used elsewhere - test with a single day/transition first and confirm it round-trips (`set_weekly_schedule` then `get_weekly_schedule`) before relying on it.
+This talks directly to the device over MQTT (via Zigbee2MQTT's standard `thermostat_weekly_schedule` converter) rather than through this integration's usual coordinator state, so it bypasses the hold/mode logic used elsewhere. Read and write have been verified round-tripping against a real SLR2d.
 
 #### Editing the schedule from the UI (no YAML)
 
