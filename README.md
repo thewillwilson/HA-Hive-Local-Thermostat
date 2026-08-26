@@ -39,9 +39,63 @@ There are also matching actions to cancel the native boost for Heating `hive_loc
 The SLR2 answers the standard Zigbee thermostat cluster's Get/Set Weekly Schedule commands, so this fork exposes that directly rather than only letting you toggle Auto mode:
 
 - `hive_local_thermostat.get_weekly_schedule` (`zone`: `heat` or `water`, defaults to `heat`) requests the device report its schedule. The reply arrives asynchronously - sometimes as several messages, one per group of days that share an identical programme - and is merged into the `sensor.*_weekly_schedule_heat`/`sensor.*_weekly_schedule_water` diagnostic entity's `schedule` attribute as it comes in. Nothing is populated until you call this at least once; it isn't polled automatically.
-- `hive_local_thermostat.set_weekly_schedule` (`zone`, `days`: list of weekday names, `transitions`: list of `{time: "HH:MM", temperature: <°C>}`, up to 6 in chronological order) writes a programme to the device for the given day(s). Use a low placeholder temperature (e.g. `1`) for a transition that should mean "off"/setback rather than a real target - that's the device's own convention, not something this integration invents.
+- `hive_local_thermostat.set_weekly_schedule` (`zone`, `days`: list of weekday names, `transitions`: list of transition objects, up to 6 in chronological order) writes a programme to the device for the given day(s). Each transition is `{time: "HH:MM", ...}`:
+  - **heat**: `temperature: <°C>` for a real target, or `state: "off"` for a setback period.
+  - **water**: `state: "on"` or `state: "off"` (it's an on/off relay, no temperature).
+
+  This is the same shape the schedule sensor renders, so a day you read back via `get_weekly_schedule` can be pasted straight into `set_weekly_schedule`.
 
 This talks directly to the device over MQTT rather than through this integration's usual coordinator state, so it bypasses the hold/mode logic used elsewhere - test with a single day/transition first and confirm it round-trips (`set_weekly_schedule` then `get_weekly_schedule`) before relying on it.
+
+#### Editing the schedule from the UI (no YAML)
+
+If you'd rather not call the action by hand, the integration's own **Configure** dialog has a guided editor:
+
+Settings → Devices & Services → **Hive Local Thermostat** → the ⚙ **Configure** button → **Manage schedules**.
+
+The **Manage schedules** menu holds **Edit heating schedule**, **Clear heating schedule**, and (SLR2) the matching water actions. (The top-level menu also has **General settings** — MQTT topic / model / schedule-mode options — as before.)
+
+**Editing** is two steps:
+
+1. **Who** — choose *Apply to* (a preset: **Every day**, **Weekdays**, **Weekend**, or **Custom days**), and optionally **Load times from** an existing day to pre-fill the next screen. Loading a day and applying it to others is how you **copy one day onto several** (e.g. load Monday, apply to Weekdays, submit unchanged).
+2. **What** — up to six rows of time (24-hour `HH:MM`) plus, for heating, a temperature or an *Off / setback* tick; for water a simple *On* tick. A row is used only if it has a time.
+
+Each submit **overwrites the whole day** on the device for the days you chose, so enter the full day's programme. For a different weekend, do it in two passes (Weekdays, then Weekend).
+
+**Clearing** (Clear heating / Clear water) overwrites the chosen days with a single all-day-off period — a quick way to wipe a zone's schedule for some or all days.
+
+#### Viewing the schedule
+
+The `sensor.*_weekly_schedule_heat` / `_water` diagnostic entities carry three attributes:
+
+- `schedule_text` - each day as one readable line, e.g. `06:30 21°C · 09:00 off · 17:00 20°C · 22:00 off`. This is the one to look at.
+- `schedule` - the same data structured per transition (`{time, state, temperature}`), for templating.
+- `raw_schedule` - the untouched device values, for feeding back into `set_weekly_schedule` if you prefer raw.
+
+A Markdown card gives you a readable week at a glance (replace the entity id with yours):
+
+```yaml
+type: markdown
+content: >-
+  {% set s = state_attr('sensor.hivereceiver_weekly_schedule_heat', 'schedule_text') %}
+  {% if s %}{% for day, line in s.items() %}
+  **{{ day | capitalize }}:** {{ line }}
+  {% endfor %}{% else %}No schedule read yet - call `get_weekly_schedule`.{% endif %}
+```
+
+Example - to remove an unwanted early-morning heating block on weekdays (leaving a single comfortable evening period), overwrite those days:
+
+```yaml
+action: hive_local_thermostat.set_weekly_schedule
+data:
+  config_entry_id: <your entry id>
+  zone: heat
+  days: [monday, tuesday, wednesday, thursday, friday]
+  transitions:
+    - {time: "00:00", state: "off"}
+    - {time: "17:00", temperature: 20}
+    - {time: "22:00", state: "off"}
+```
 
 ![Hive Screenshot](https://raw.githubusercontent.com/spants/HA-Hive-Local-Thermostat/main/images/screenshot.png "Hive Controls")
 

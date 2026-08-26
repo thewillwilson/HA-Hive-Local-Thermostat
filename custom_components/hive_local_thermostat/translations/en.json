@@ -23,6 +23,14 @@
         "step": {
             "init": {
                 "title": "Hive Local Thermostat",
+                "description": "Choose what to configure.",
+                "menu_options": {
+                    "general": "General settings",
+                    "manage_schedules": "Manage schedules"
+                }
+            },
+            "general": {
+                "title": "General settings",
                 "description": "Enter the entity name and configure parameters.",
                 "data": {
                     "mqtt_topic": "MQTT topic",
@@ -35,7 +43,101 @@
                     "show_heat_schedule_mode": "Enable if you want to have the option to use the Hive thermostat built in schedules for heating, shows as Auto in the climate control.",
                     "show_water_schedule_mode": "Enable if you want to have the option to use the Hive thermostat built in schedules for water, ignore if your model does not support water."
                 }
+            },
+            "manage_schedules": {
+                "title": "Manage schedules",
+                "description": "Edit or clear the device's built-in weekly schedule. Editing lets you load an existing day as a starting point (which also copies one day to others); clearing turns the chosen days fully off.",
+                "menu_options": {
+                    "heat_schedule": "Edit heating schedule",
+                    "clear_heat": "Clear heating schedule",
+                    "water_schedule": "Edit water schedule",
+                    "clear_water": "Clear water schedule"
+                }
+            },
+            "heat_schedule": {
+                "title": "Edit heating schedule — step 1 of 2",
+                "description": "Step 1: choose which days to write to, and optionally a day to copy times from. Press **Next** to set the times on the following screen (it will be pre-filled from the day you pick here). Tip: to copy one day to several, pick it under 'Start times from' and set 'Apply to' to the target days.",
+                "data": {
+                    "days_preset": "Apply to",
+                    "days": "Custom days",
+                    "load_from": "Start times from (optional)"
+                },
+                "data_description": {
+                    "days_preset": "Which days this schedule will be written to when you finish.",
+                    "days": "Only used when 'Apply to' is set to Custom.",
+                    "load_from": "Pick an existing day to pre-fill the next screen with its times (you can then adjust them). Leave as 'Blank' to start empty. Only days already read from the device appear here."
+                }
+            },
+            "water_schedule": {
+                "title": "Edit water schedule — step 1 of 2",
+                "description": "Step 1: choose which days to write to, and optionally a day to copy times from. Press **Next** to set the times on the following screen (it will be pre-filled from the day you pick here). Tip: to copy one day to several, pick it under 'Start times from' and set 'Apply to' to the target days.",
+                "data": {
+                    "days_preset": "Apply to",
+                    "days": "Custom days",
+                    "load_from": "Start times from (optional)"
+                },
+                "data_description": {
+                    "days_preset": "Which days this schedule will be written to when you finish.",
+                    "days": "Only used when 'Apply to' is set to Custom.",
+                    "load_from": "Pick an existing day to pre-fill the next screen with its times (you can then adjust them). Leave as 'Blank' to start empty. Only days already read from the device appear here."
+                }
+            },
+            "schedule_rows": {
+                "title": "Set the times — step 2 of 2",
+                "description": "If you chose a day to start from, these rows are already pre-filled - adjust as needed. Fill only the rows you need: a row is used only if it has a time. Times are 24-hour HH:MM (e.g. 06:30, 17:00). For heating, tick Off for a setback period instead of a target temperature; for water, tick On for a hot-water period. Submitting overwrites the whole day on the device for the days you chose.",
+                "data": {
+                    "time_1": "Time 1 (HH:MM)",
+                    "temperature_1": "Temperature 1 (°C)",
+                    "off_1": "Off / setback 1",
+                    "on_1": "On 1",
+                    "time_2": "Time 2 (HH:MM)",
+                    "temperature_2": "Temperature 2 (°C)",
+                    "off_2": "Off / setback 2",
+                    "on_2": "On 2",
+                    "time_3": "Time 3 (HH:MM)",
+                    "temperature_3": "Temperature 3 (°C)",
+                    "off_3": "Off / setback 3",
+                    "on_3": "On 3",
+                    "time_4": "Time 4 (HH:MM)",
+                    "temperature_4": "Temperature 4 (°C)",
+                    "off_4": "Off / setback 4",
+                    "on_4": "On 4",
+                    "time_5": "Time 5 (HH:MM)",
+                    "temperature_5": "Temperature 5 (°C)",
+                    "off_5": "Off / setback 5",
+                    "on_5": "On 5",
+                    "time_6": "Time 6 (HH:MM)",
+                    "temperature_6": "Temperature 6 (°C)",
+                    "off_6": "Off / setback 6",
+                    "on_6": "On 6"
+                }
+            },
+            "clear_heat": {
+                "title": "Clear heating schedule",
+                "description": "Overwrites the chosen days with a single all-day-off (setback) period, wiping their heating schedule. Pick the days under 'Apply to'.",
+                "data": {
+                    "days_preset": "Apply to",
+                    "days": "Custom days (only used when Apply to is Custom)"
+                }
+            },
+            "clear_water": {
+                "title": "Clear water schedule",
+                "description": "Overwrites the chosen days with a single all-day-off period, wiping their hot-water schedule. Pick the days under 'Apply to'.",
+                "data": {
+                    "days_preset": "Apply to",
+                    "days": "Custom days (only used when Apply to is Custom)"
+                }
+            },
+            "schedule_sent": {
+                "title": "Schedule sent",
+                "description": "The schedule was sent to the device, and it's being re-read now. Open the **Weekly schedule** sensor (heat or water) and check its `schedule_text` attribute - within a few seconds it should show the times you just set. If it doesn't change, the device may have rejected the write. Press Submit to close."
             }
+        },
+        "error": {
+            "no_transitions": "Add at least one transition (a row with a time filled in).",
+            "temperature_required": "A heating transition that isn't marked Off needs a temperature.",
+            "invalid_time": "Enter times as 24-hour HH:MM, e.g. 06:30 or 17:00.",
+            "no_days": "Select at least one day, or choose a different 'Apply to' preset."
         }
     },
     "selector": {

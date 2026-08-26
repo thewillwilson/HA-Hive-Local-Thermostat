@@ -49,6 +49,10 @@ VALID_SCHEDULE_DAYS = [
     "sunday",
 ]
 
+# Most transitions the device accepts per day for a weekly schedule; also the
+# number of editable rows the options-flow schedule wizard offers.
+MAX_SCHEDULE_TRANSITIONS = 6
+
 # Sentinel heating_setpoint value the device uses in a transition to mean
 # "no target here" (i.e. off/setback), rather than a real temperature.
 WEEKLY_SCHEDULE_OFF_SETPOINT = 1
