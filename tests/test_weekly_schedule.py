@@ -124,10 +124,9 @@ async def test_set_water_on_non_slr2_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
-async def test_clear_weekly_schedule_payload_and_cache() -> None:
-    """Clear sends the native command, resets the cache, and re-reads."""
+async def test_clear_weekly_schedule_writes_all_off() -> None:
+    """Clear writes one 00:00 off transition to every day, then re-reads."""
     coordinator = _bare_coordinator(const.MODEL_SLR2)
-    coordinator.weekly_schedule_water = {"monday": [{"time": 1020, "heating_setpoint": 99}]}
     sent = _capture_set(coordinator)
     calls: list[str] = []
 
@@ -135,13 +134,19 @@ async def test_clear_weekly_schedule_payload_and_cache() -> None:
         calls.append(zone)
 
     coordinator.async_get_weekly_schedule = _fake_get  # type: ignore[method-assign]
-    coordinator._save_weekly_schedule = lambda: None  # type: ignore[method-assign]
-    coordinator.async_update_listeners = lambda: None  # type: ignore[method-assign]
 
     await coordinator.async_clear_weekly_schedule(const.ZONE_WATER)
 
-    assert sent == [{"clear_weekly_schedule_water": ""}]
-    assert coordinator.weekly_schedule_water == {}
+    assert sent == [
+        {
+            "weekly_schedule_water": {
+                "dayofweek": ALL_DAYS,
+                "transitions": [
+                    {"transitionTime": "00:00", "heatSetpoint": const.WATER_SCHEDULE_OFF_SETPOINT}
+                ],
+            }
+        }
+    ]
     assert calls == [const.ZONE_WATER]
 
 

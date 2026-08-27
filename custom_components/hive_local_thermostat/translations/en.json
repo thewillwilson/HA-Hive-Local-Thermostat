@@ -114,11 +114,11 @@
             },
             "clear_heat": {
                 "title": "Clear heating schedule",
-                "description": "Wipes the ENTIRE heating schedule on the device (all seven days) using its native clear command - there is no per-day clear. Afterwards the device has no heating programme until you set one again. Press Submit to clear."
+                "description": "Sets every day to a single all-day-off (setback) period, so nothing is scheduled. This overwrites the whole heating programme on all seven days. Press Submit to clear."
             },
             "clear_water": {
                 "title": "Clear water schedule",
-                "description": "Wipes the ENTIRE hot-water schedule on the device (all seven days) using its native clear command - there is no per-day clear. Afterwards the device has no water programme until you set one again. Press Submit to clear."
+                "description": "Sets every day to a single all-day-off period, so no hot water is scheduled. This overwrites the whole water programme on all seven days. Press Submit to clear."
             },
             "schedule_sent": {
                 "title": "Schedule sent",

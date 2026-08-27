@@ -62,7 +62,7 @@ The **Manage schedules** menu holds **Edit heating schedule**, **Clear heating s
 
 Each submit **overwrites the whole day** on the device for the days you chose, so enter the full day's programme. For a different weekend, do it in two passes (Weekdays, then Weekend).
 
-**Clearing** (Clear heating / Clear water) wipes the entire schedule for that zone using the device's native clear command (all seven days at once — there's no per-day clear). Afterwards the zone has no programme until you set one again.
+**Clearing** (Clear heating / Clear water) sets every day to a single all-day-off period, so nothing is scheduled for that zone (this device ignores the Zigbee clear command, so an explicit all-off is used instead — it's predictable and uses the same verified write path).
 
 There's also a **Refresh weekly schedule** button (diagnostic) that re-polls the device on demand, so you can force the schedule sensors to update without waiting for the next restart or calling `get_weekly_schedule`.
 

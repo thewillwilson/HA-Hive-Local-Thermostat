@@ -29,6 +29,9 @@ from .const import (
     HIVE_BOOST,
     LOGGER,
     MODEL_SLR2,
+    VALID_SCHEDULE_DAYS,
+    WATER_SCHEDULE_OFF_SETPOINT,
+    WEEKLY_SCHEDULE_OFF_SETPOINT,
     ZONE_HEAT,
     ZONE_WATER,
 )
@@ -569,12 +572,6 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return f"weekly_schedule_{zone}"
         return "weekly_schedule"
 
-    def _clear_schedule_key(self, zone: str) -> str:
-        """Return the model-aware MQTT key for Z2M's clear-weekly-schedule."""
-        if self.model == MODEL_SLR2:
-            return f"clear_weekly_schedule_{zone}"
-        return "clear_weekly_schedule"
-
     async def async_get_weekly_schedule(self, zone: str = ZONE_HEAT) -> None:
         """Request the device report its native weekly schedule for a zone.
 
@@ -634,28 +631,28 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return f"{hours:02d}:{mins:02d}"
 
     async def async_clear_weekly_schedule(self, zone: str) -> None:
-        """Clear the device's entire weekly schedule for a zone.
+        """Clear a zone's schedule by writing a single all-day-off transition.
 
-        Uses Z2M's native clear_weekly_schedule command (ZCL clearWeeklySchedule),
-        which wipes every day for the endpoint - there is no per-day clear. The
-        local cache is reset optimistically and re-read afterwards, so the sensor
-        stops showing the old schedule even if the device reports nothing back.
+        This device does not honour the ZCL clearWeeklySchedule command, so
+        rather than truly emptying the programme we overwrite every day with one
+        00:00 off/setback transition - a predictable "nothing scheduled" state -
+        via the same verified write path used by async_set_weekly_schedule.
         """
         if zone == ZONE_WATER and self.model != MODEL_SLR2:
             LOGGER.error("Water zone schedule is only available on SLR2")
             return
 
-        key = self._clear_schedule_key(zone)
-        await self._async_publish_set(json.dumps({key: ""}))
-
-        if zone == ZONE_WATER:
-            self.weekly_schedule_water = {}
-        else:
-            self.weekly_schedule_heat = {}
-        self._save_weekly_schedule()
-        self.async_update_listeners()
-
-        # Reconcile with the device - if anything is still scheduled it comes back.
+        off_setpoint = (
+            WATER_SCHEDULE_OFF_SETPOINT
+            if zone == ZONE_WATER
+            else WEEKLY_SCHEDULE_OFF_SETPOINT
+        )
+        await self.async_set_weekly_schedule(
+            zone,
+            list(VALID_SCHEDULE_DAYS),
+            [{"time": 0, "heating_setpoint": off_setpoint}],
+        )
+        # Re-read so the sensor reflects the cleared (all-off) schedule.
         await self.async_get_weekly_schedule(zone)
 
     async def async_water_boost(
