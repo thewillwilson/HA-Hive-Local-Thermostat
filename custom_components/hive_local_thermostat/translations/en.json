@@ -114,19 +114,11 @@
             },
             "clear_heat": {
                 "title": "Clear heating schedule",
-                "description": "Overwrites the chosen days with a single all-day-off (setback) period, wiping their heating schedule. Pick the days under 'Apply to'.",
-                "data": {
-                    "days_preset": "Apply to",
-                    "days": "Custom days (only used when Apply to is Custom)"
-                }
+                "description": "Wipes the ENTIRE heating schedule on the device (all seven days) using its native clear command - there is no per-day clear. Afterwards the device has no heating programme until you set one again. Press Submit to clear."
             },
             "clear_water": {
                 "title": "Clear water schedule",
-                "description": "Overwrites the chosen days with a single all-day-off period, wiping their hot-water schedule. Pick the days under 'Apply to'.",
-                "data": {
-                    "days_preset": "Apply to",
-                    "days": "Custom days (only used when Apply to is Custom)"
-                }
+                "description": "Wipes the ENTIRE hot-water schedule on the device (all seven days) using its native clear command - there is no per-day clear. Afterwards the device has no water programme until you set one again. Press Submit to clear."
             },
             "schedule_sent": {
                 "title": "Schedule sent",
@@ -230,6 +222,9 @@
             },
             "boost_heating": {
                 "name": "Heating boost"
+            },
+            "refresh_weekly_schedule": {
+                "name": "Refresh weekly schedule"
             }
         }
     },

@@ -569,6 +569,12 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return f"weekly_schedule_{zone}"
         return "weekly_schedule"
 
+    def _clear_schedule_key(self, zone: str) -> str:
+        """Return the model-aware MQTT key for Z2M's clear-weekly-schedule."""
+        if self.model == MODEL_SLR2:
+            return f"clear_weekly_schedule_{zone}"
+        return "clear_weekly_schedule"
+
     async def async_get_weekly_schedule(self, zone: str = ZONE_HEAT) -> None:
         """Request the device report its native weekly schedule for a zone.
 
@@ -626,6 +632,31 @@ class HiveCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Render minutes-since-midnight as the "HH:MM" the converter accepts."""
         hours, mins = divmod(int(minutes), 60)
         return f"{hours:02d}:{mins:02d}"
+
+    async def async_clear_weekly_schedule(self, zone: str) -> None:
+        """Clear the device's entire weekly schedule for a zone.
+
+        Uses Z2M's native clear_weekly_schedule command (ZCL clearWeeklySchedule),
+        which wipes every day for the endpoint - there is no per-day clear. The
+        local cache is reset optimistically and re-read afterwards, so the sensor
+        stops showing the old schedule even if the device reports nothing back.
+        """
+        if zone == ZONE_WATER and self.model != MODEL_SLR2:
+            LOGGER.error("Water zone schedule is only available on SLR2")
+            return
+
+        key = self._clear_schedule_key(zone)
+        await self._async_publish_set(json.dumps({key: ""}))
+
+        if zone == ZONE_WATER:
+            self.weekly_schedule_water = {}
+        else:
+            self.weekly_schedule_heat = {}
+        self._save_weekly_schedule()
+        self.async_update_listeners()
+
+        # Reconcile with the device - if anything is still scheduled it comes back.
+        await self.async_get_weekly_schedule(zone)
 
     async def async_water_boost(
         self, boost_duration_minutes: int | None = None

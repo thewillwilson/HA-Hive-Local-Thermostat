@@ -447,29 +447,19 @@ async def write_schedule_rows(
     return {}
 
 
-# --- Clear: overwrite the chosen days with a single all-day-off transition ---
+# --- Clear: wipe the whole zone schedule via Z2M's native clear command ---
 
 
 async def clear_schema(_handler: SchemaCommonFlowHandler) -> vol.Schema:
-    """Clear form: just the apply-to preset/days (no rows)."""
-    return vol.Schema(_apply_to_markers())
+    """Clear is a whole-zone action with nothing to configure - confirm only."""
+    return vol.Schema({})
 
 
 async def _apply_clear(
-    handler: SchemaCommonFlowHandler, user_input: dict[str, Any], zone: str
+    handler: SchemaCommonFlowHandler, _user_input: dict[str, Any], zone: str
 ) -> dict[str, Any]:
-    """Overwrite the resolved days with one 00:00 off transition (all-day off)."""
-    days = _resolve_days(user_input)
-    off_setpoint = (
-        const.WATER_SCHEDULE_OFF_SETPOINT
-        if zone == const.ZONE_WATER
-        else const.WEEKLY_SCHEDULE_OFF_SETPOINT
-    )
-    transitions = [{"time": 0, "heating_setpoint": off_setpoint}]
-    coordinator = _coordinator(handler)
-    await coordinator.async_set_weekly_schedule(zone, days, transitions)
-    # Re-read so the sensor shows the cleared schedule back from the device.
-    await coordinator.async_get_weekly_schedule(zone)
+    """Clear the entire weekly schedule for a zone (native ZCL clear)."""
+    await _coordinator(handler).async_clear_weekly_schedule(zone)
     return {}
 
 

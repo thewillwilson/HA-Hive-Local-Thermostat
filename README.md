@@ -62,7 +62,9 @@ The **Manage schedules** menu holds **Edit heating schedule**, **Clear heating s
 
 Each submit **overwrites the whole day** on the device for the days you chose, so enter the full day's programme. For a different weekend, do it in two passes (Weekdays, then Weekend).
 
-**Clearing** (Clear heating / Clear water) overwrites the chosen days with a single all-day-off period — a quick way to wipe a zone's schedule for some or all days.
+**Clearing** (Clear heating / Clear water) wipes the entire schedule for that zone using the device's native clear command (all seven days at once — there's no per-day clear). Afterwards the zone has no programme until you set one again.
+
+There's also a **Refresh weekly schedule** button (diagnostic) that re-polls the device on demand, so you can force the schedule sensors to update without waiting for the next restart or calling `get_weekly_schedule`.
 
 #### Viewing the schedule
 

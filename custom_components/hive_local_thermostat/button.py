@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -12,6 +13,8 @@ from .common import HiveConfigEntry
 from .const import (
     DOMAIN,
     MODEL_SLR2,
+    ZONE_HEAT,
+    ZONE_WATER,
 )
 from .coordinator import HiveCoordinator
 from .entity import HiveEntity, HiveEntityDescription
@@ -51,6 +54,15 @@ async def async_setup_entry(
             )
         )
 
+    entity_descriptions.append(
+        HiveButtonEntityDescription(
+            key="refresh_weekly_schedule",
+            translation_key="refresh_weekly_schedule",
+            name=config_entry.title,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+    )
+
     _entities = [
         HiveButton(
             entity_description=entity_description,
@@ -88,3 +100,9 @@ class HiveButton(HiveEntity, ButtonEntity):
             await self.coordinator.async_water_boost()
         elif self.entity_description.key == "boost_heating":
             await self.coordinator.async_heating_boost()
+        elif self.entity_description.key == "refresh_weekly_schedule":
+            # Re-request the schedule(s) from the device; the reply merges into
+            # coordinator state and refreshes the weekly schedule sensor(s).
+            await self.coordinator.async_get_weekly_schedule(ZONE_HEAT)
+            if self.coordinator.model == MODEL_SLR2:
+                await self.coordinator.async_get_weekly_schedule(ZONE_WATER)
