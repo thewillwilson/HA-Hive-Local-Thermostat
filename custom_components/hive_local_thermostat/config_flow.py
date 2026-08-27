@@ -54,7 +54,7 @@ def optional(
 
 
 async def general_options_schema(
-    handler: SchemaConfigFlowHandler | SchemaOptionsFlowHandler,
+    handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
     """Generate options schema."""
     return vol.Schema(
@@ -82,7 +82,7 @@ async def general_options_schema(
 
 
 async def general_config_schema(
-    handler: SchemaConfigFlowHandler | SchemaOptionsFlowHandler,
+    handler: SchemaCommonFlowHandler,
 ) -> vol.Schema:
     """Generate config schema."""
     return vol.Schema(
@@ -137,6 +137,7 @@ ERROR_NO_TRANSITIONS = "no_transitions"
 ERROR_TEMPERATURE_REQUIRED = "temperature_required"
 ERROR_INVALID_TIME = "invalid_time"
 ERROR_NO_DAYS = "no_days"
+ERROR_NOT_LOADED = "not_loaded"
 
 
 def _day_options() -> list[selector.SelectOptionDict]:
@@ -174,11 +175,27 @@ def _parse_time_to_minutes(value: str) -> int:
     return parsed.hour * 60 + parsed.minute
 
 
-def _coordinator(handler: SchemaCommonFlowHandler) -> HiveCoordinator:
-    """Fetch the running coordinator for the config entry being configured."""
+def _coordinator_or_none(handler: SchemaCommonFlowHandler) -> HiveCoordinator | None:
+    """Return the running coordinator, or None if the entry isn't loaded."""
     options_handler = cast(SchemaOptionsFlowHandler, handler.parent_handler)
     entry = options_handler.config_entry
-    return cast("HiveData", entry.runtime_data).coordinator
+    data = getattr(entry, "runtime_data", None)
+    if data is None:
+        return None
+    return cast("HiveData", data).coordinator
+
+
+def _coordinator(handler: SchemaCommonFlowHandler) -> HiveCoordinator:
+    """Fetch the running coordinator, or fail the step if the entry is unloaded.
+
+    A schedule step needs the live device connection; if setup failed or the
+    entry is disabled there's no coordinator, so surface a clear form error
+    rather than an AttributeError-as-"Unknown error".
+    """
+    coordinator = _coordinator_or_none(handler)
+    if coordinator is None:
+        raise SchemaFlowError(ERROR_NOT_LOADED)
+    return coordinator
 
 
 def _zone_schedule(
@@ -285,13 +302,15 @@ def _setup_schema(schedule: dict[str, list[dict[str, Any]]] | None) -> vol.Schem
 
 async def heat_setup_schema(handler: SchemaCommonFlowHandler) -> vol.Schema:
     """Build the heating editor setup schema, load-from list from device state."""
-    schedule = _zone_schedule(_coordinator(handler), const.ZONE_HEAT)
+    coordinator = _coordinator_or_none(handler)
+    schedule = _zone_schedule(coordinator, const.ZONE_HEAT) if coordinator else None
     return _setup_schema(schedule)
 
 
 async def water_setup_schema(handler: SchemaCommonFlowHandler) -> vol.Schema:
     """Build the water editor setup schema, load-from list from device state."""
-    schedule = _zone_schedule(_coordinator(handler), const.ZONE_WATER)
+    coordinator = _coordinator_or_none(handler)
+    schedule = _zone_schedule(coordinator, const.ZONE_WATER) if coordinator else None
     return _setup_schema(schedule)
 
 
@@ -538,15 +557,17 @@ def build_options_flow(
     return flow
 
 
-# A superset flow so SchemaConfigFlowHandler.__init_subclass__ generates an
-# async_step_* method for every step; the per-entry (model-aware) flow is what
-# actually drives the options flow, built in _async_get_options_flow below.
+# SchemaConfigFlowHandler requires an `options_flow` class attr to exist (its
+# presence is what enables the options flow); the actual per-entry, model-aware
+# flow is built in _async_get_options_flow below and handed to
+# SchemaOptionsFlowHandler, which generates that instance's async_step_* methods.
+# The value here is otherwise unused, so the SLR2 superset is just a convenient
+# non-empty flow.
 OPTIONS_FLOW: dict[str, SchemaFlowFormStep | SchemaFlowMenuStep] = build_options_flow(
     const.MODEL_SLR2
 )
 
 
-# mypy: ignore-errors
 class ConfigFlowHandler(SchemaConfigFlowHandler, domain=const.DOMAIN):
     """Handle a config or options flow for Holdays."""
 
@@ -564,7 +585,6 @@ class ConfigFlowHandler(SchemaConfigFlowHandler, domain=const.DOMAIN):
         return cast(str, options["name"]) if "name" in options else ""
 
 
-@staticmethod
 @callback
 def _async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
     """Return a model-aware options flow for this entry.
@@ -577,4 +597,6 @@ def _async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
     return SchemaOptionsFlowHandler(config_entry, build_options_flow(model))
 
 
-ConfigFlowHandler.async_get_options_flow = _async_get_options_flow
+# Replace the auto-generated (static-flow) options-flow factory with the
+# model-aware one above. mypy flags reassigning a method; that's intentional.
+ConfigFlowHandler.async_get_options_flow = _async_get_options_flow  # type: ignore[method-assign]

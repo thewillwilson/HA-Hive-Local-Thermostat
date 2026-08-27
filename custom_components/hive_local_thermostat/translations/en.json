@@ -129,7 +129,8 @@
             "no_transitions": "Add at least one transition (a row with a time filled in).",
             "temperature_required": "A heating transition that isn't marked Off needs a temperature.",
             "invalid_time": "Enter times as 24-hour HH:MM, e.g. 06:30 or 17:00.",
-            "no_days": "Select at least one day, or choose a different 'Apply to' preset."
+            "no_days": "Select at least one day, or choose a different 'Apply to' preset.",
+            "not_loaded": "This device isn't connected right now - set it up or reconnect it, then try again."
         }
     },
     "selector": {
