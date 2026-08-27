@@ -333,7 +333,6 @@ class HiveWeeklyScheduleSensor(HiveEntity, SensorEntity):
             self._attr_extra_state_attributes = {
                 "schedule_text": text,
                 "schedule": formatted,
-                "raw_schedule": schedule,
             }
         else:
             self._attr_native_value = "unknown"

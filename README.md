@@ -66,11 +66,10 @@ Each submit **overwrites the whole day** on the device for the days you chose, s
 
 #### Viewing the schedule
 
-The `sensor.*_weekly_schedule_heat` / `_water` diagnostic entities carry three attributes:
+The `sensor.*_weekly_schedule_heat` / `_water` diagnostic entities show the schedule as their **state** when every day matches (e.g. `00:00 off · 17:00 on · 18:00 off`), or `N/7 days, varies` when days differ. Two attributes carry the full detail:
 
 - `schedule_text` - each day as one readable line, e.g. `06:30 21°C · 09:00 off · 17:00 20°C · 22:00 off`. This is the one to look at.
-- `schedule` - the same data structured per transition (`{time, state, temperature}`), for templating.
-- `raw_schedule` - the untouched device values, for feeding back into `set_weekly_schedule` if you prefer raw.
+- `schedule` - the same data structured per transition (`{time, state, temperature}`), for templating. This is also exactly the shape you feed back into `set_weekly_schedule`.
 
 A Markdown card gives you a readable week at a glance (replace the entity id with yours):
 
