@@ -99,7 +99,15 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG001", "ANN001", "PLR2004"]
+"tests/**/*.py" = [
+  "ARG001",  # Unused function argument (fixtures / fakes)
+  "ANN001",  # Missing type annotation for function argument
+  "PLR2004", # Magic value used in comparison (expected values in asserts)
+  "SLF001",  # Private member access (tests exercise internal helpers)
+  "D103",    # Missing docstring in public function (test names are the docs)
+  "D401",    # Docstring imperative mood
+  "C420",    # dict comprehension vs dict.fromkeys (readability in tests)
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25
